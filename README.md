@@ -48,9 +48,7 @@ The project consists of the following main modules:
 
 If you find any issues or have suggestions for improvements, feel free to open a new issue or submit a pull request. Contributions are welcome!
 
-## License
 
-This project is licensed under the [MIT License](LICENSE).
 
 ## Testing
 
