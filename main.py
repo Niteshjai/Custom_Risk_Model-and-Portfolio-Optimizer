@@ -2,36 +2,15 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import cvxpy as cp
-from factors import factor as ft
-from data import data as dt
+from factors import factor 
+from data import data 
 from optimizer import opt
-
-def frontier():
-    mus = np.linspace(-0.02, 0.05, 50)
-    rets, risks = [], []
-
-    for mu in mus:
-        w = cp.Variable((len(dt.tickers), 1))
-        constraints = [cp.sum(w) == 1, w >= 0, w <= 0.1, w.T @ opt.alpha >= mu]
-        prob = cp.Problem(cp.Minimize(cp.quad_form(w, ft.Sigma)), constraints)
-        prob.solve()
-        if w.value is not None:
-            rets.append(float(w.value.T @ opt.alpha))
-            risks.append(np.sqrt(float(w.value.T @ ft.Sigma @ w.value)))
-
-    plt.figure(figsize=(8,5))
-    plt.plot(risks, rets)
-    plt.xlabel("Volatility")
-    plt.ylabel("Expected Return")
-    plt.title("Efficient Frontier")
-    plt.grid(True)
-    plt.show()
 
 def return_plot():
     plt.figure(figsize=(12,6))
-    plt.plot(cumulative_returns, label="Optimized")
-    plt.plot(cum_equal, label="Equal Weight")
-    plt.plot(cum_mc, label="Market Cap Weight")
+    plt.plot(cumulative_returns, label="Optimized")      # Plot optimized portfolio cumulative returns
+    plt.plot(cum_equal, label="Equal Weight")            # Plot equal-weighted portfolio cumulative returns
+    plt.plot(cum_mc, label="Market Cap Weight")          # Plot market-cap-weighted portfolio cumulative returns
     plt.title("Portfolio Performance")
     plt.xlabel("Date")
     plt.ylabel("Cumulative Return")
@@ -39,32 +18,53 @@ def return_plot():
     plt.grid(True)
     plt.show()
 
-def sharpe_ratio(rets, rf=0):
-    return (rets.mean() - rf) / rets.std()
+def sharpe_ratio(portfolio_returns, rf=0.0, periods_per_year=252):
+    """
+    Compute annualized Sharpe ratio from daily returns.
+    rf: risk-free rate (annualized)
+    """
+    excess_returns = portfolio_returns - rf / periods_per_year
+    ann_excess_return = np.mean(excess_returns) * periods_per_year
+    ann_volatility = np.std(portfolio_returns) * np.sqrt(periods_per_year)
+    return ann_excess_return / ann_volatility
 
 def max_drawdown(cum_rets):
-    peak = cum_rets.cummax()
-    drawdown = (cum_rets - peak) / peak
-    return drawdown.min()
+    peak = cum_rets.cummax()                              # Running maximum of cumulative returns
+    drawdown = (cum_rets - peak) / peak                   # Drawdown series
+    return drawdown.min()                                  # Maximum drawdown (largest drop)
 
-if __name__=="__main__" :
-    portfolio_return=ft.R.T@opt.weights
-    cumulative_returns=(1+portfolio_return).cumprod()
+if __name__=="__main__":
 
-    equal_weights = np.ones(len(dt.tickers)) / len(dt.tickers)
-    # Extract the last market cap value for each ticker, handling empty Series
-    market_caps = np.array([dt.all_data[t]['size'].iloc[-1] if not dt.all_data[t]['size'].empty else 0 for t in dt.tickers]).reshape(-1,1)
+    all_data, sector_vector, beta_dt,stock_data,tickers=data()
+    R,beta_dt,sector_vector,Sigma=factor()
+    weights=opt()
+
+    # Compute portfolio daily returns using optimized weights from the factor model
+    portfolio_return = R.T @ opt.weights
+    cumulative_returns = (1 + portfolio_return).cumprod() # Cumulative product to get total return series
+
+    # Equal-weighted portfolio weights
+    equal_weights = np.ones(len(tickers)) / len(tickers)
+    
+    # Market cap weights using latest size factor (log market cap)
+    market_caps = np.array([
+        all_data[t]['size'].iloc[-1] if not all_data[t]['size'].empty else 0
+        for t in tickers
+    ]).reshape(-1, 1)
     mc_weights = market_caps / np.nansum(market_caps)
 
-    equal_returns = ft.R.T @ equal_weights
-    mc_returns = ft.R.T @ mc_weights
+    # Calculate daily returns for equal weight and market cap portfolios
+    equal_returns = R.T @ equal_weights
+    mc_returns = R.T @ mc_weights
 
+    # Compute cumulative returns
     cum_equal = (1 + equal_returns).cumprod()
     cum_mc = (1 + mc_returns).cumprod()
 
+    # Print performance metrics for optimized portfolio
     print("Sharpe (Optimized):", sharpe_ratio(portfolio_return))
     print("Volatility (Optimized):", portfolio_return.std())
     print("Max Drawdown:", max_drawdown(cumulative_returns))
     
+    # Plot cumulative return comparison
     return_plot()
-    frontier()
