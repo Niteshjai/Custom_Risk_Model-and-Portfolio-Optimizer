@@ -4,13 +4,69 @@ A Python-based toolkit to build customized risk models and optimize portfolios u
 
 ---
 
-## 🔹 Features
+## 🧠 Core Components
 
-* Build risk models using custom metrics (e.g., volatility, correlations, drawdowns).
-* Perform portfolio optimization: maximize Sharpe ratio, minimize variance, or apply other objective functions.
-* Run Monte Carlo simulations and backtesting on historical data.
-* Visualize portfolio performance, efficient frontier, and risk outcomes.
-* Export results and asset allocations with ease.
+### `data.py`
+
+* Fetches 5 years of daily close prices for selected stocks and the S&P 500 index using Yahoo Finance (yfinance).
+* For each stock, calculates the following factors:
+
+  * `Beta (30-day rolling)`
+  * `Size (log of market cap)`
+  * `Momentum (12-month return 1 month ago)`
+  * `P/E Ratio`
+  * `Volatility (21-day rolling std dev)`
+    
+* Applies Z-score normalization to each factor across time for all tickers.
+* Determines the most common sector among tickers.
+* Creates a vector: +1 for stocks in that sector, −1 otherwise, for use in portfolio constraints or analysis.
+
+
+
+### `factors.py`
+
+* Builds a factor model using asset returns and custom factor exposures (`beta`, `size`, `momentum`, `pe_ratio`, `volatility`).
+* Estimates:
+
+  * Factor returns via OLS
+  * Factor covariance matrix
+  * Idiosyncratic (specific) variance
+  * Total covariance matrix using:
+
+    $$
+    \Sigma = X \Sigma_f X^\top + D
+    $$
+
+### `optimizer.py`
+
+* Defines an `Optimization` class using `cvxpy`:
+
+  * **Objective**: maximize return minus risk penalty
+  * **Constraints**:
+
+    * Fully invested (`sum(weights) = 1`)
+    * Beta-neutral (`portfolio beta = 0`)
+    * Long-only
+    * Turnover constraint (`||w_t - w_{t-1}||_1 ≤ 0.05`)
+* Uses expected returns, beta exposure, and sector exposure as parameters.
+* Solves the optimization iteratively to simulate rebalancing.
+
+### `main.py`
+
+* Loads historical stock and factor data via the `data()` function.
+* Computes portfolio returns for:
+
+  * Optimized weights
+  * Equal-weighted portfolio
+  * Market cap-weighted portfolio
+* Evaluates performance via:
+
+  * Sharpe Ratio
+  * Volatility
+  * Maximum Drawdown
+* Plots cumulative returns of all three strategies.
+
+---
 
 ---
 
@@ -28,87 +84,42 @@ A Python-based toolkit to build customized risk models and optimize portfolios u
 
 ```
 Custom_Risk_Model-and-Portfolio-Optimizer/
-├── risk_model.py              # Builds covariance, risk metrics, factor models
+├── factor.py              	# Builds covariance, risk metrics, factor models
 ├── optimizer.py               # Contains optimization routines (Sharpe, var-min)
-├── backtest.py                # Monte Carlo and historical backtesting simulations
-├── visualize.py               # Plotting efficient frontier & performance charts
+├── main.py                	# Flow of program,calculate sharpe,max_drawdown and plot returns
 ├── data/
 │   └── *.csv                  # Historical price & returns data
-├── notebooks/
-│   └── analysis.ipynb         # Sample workflow & visual output
 ├── requirements.txt           # Required Python packages
 └── README.md                  # This documentation file
 ```
 
 ---
 
-## 🚀 Getting Started
 
-### 1. Clone the Repository
+## 🧪 Usage
 
-```bash
-git clone https://github.com/Niteshjai/Custom_Risk_Model-and-Portfolio-Optimizer.git
-cd Custom_Risk_Model-and-Portfolio-Optimizer
-```
+### 1. Requirements
 
-### 2. Install Dependencies
+* `cvxpy`
+* `numpy`
+* `pandas`
+* `matplotlib`
+* `scikit-learn`
 
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Prepare Your Data
-
-Place your historical returns or price CSVs inside the `data/` directory. Ensure columns include ticker names and date indices.
-
-### 4. Run Example Workflow
-
-Launch the Jupyter notebook to explore the workflow:
+### 2. Run the portfolio optimizer
 
 ```bash
-jupyter notebook notebooks/analysis.ipynb
+python main.py
 ```
 
-This notebook demonstrates:
+This will:
 
-* Building a risk model
-* Optimizing for maximum Sharpe ratio
-* Running backtests
-* Generating visualizations
+* Build the factor model and compute the risk matrix.
+* Solve the optimization problem.
+* Evaluate performance and display cumulative return plot.
 
 ---
 
-## 📝 Usage Examples
-
-**Build a risk model:**
-
-```python
-from risk_model import RiskModel
-model = RiskModel("data/price_data.csv")
-cov_matrix = model.compute_covariance(window=252)
-```
-
-**Optimize portfolio:**
-
-```python
-from optimizer import optimize_portfolio
-weights = optimize_portfolio(cov_matrix, expected_returns, objective="sharpe")
-```
-
-**Backtest result:**
-
-```python
-from backtest import run_backtest
-results = run_backtest(weights, returns_data)
-```
-
-**Visualize performance:**
-
-```python
-from visualize import plot_efficient_frontier, plot_backtest
-plot_efficient_frontier(...)
-plot_backtest(results)
-```
 
 ---
 
@@ -121,22 +132,19 @@ plot_backtest(results)
 
 ---
 
-## 🧪 License
 
-MIT License — see the `LICENSE` file.
+
 
 ---
 
-## 👤 Author
+## 📌 Notes
+
+* Factor exposures must be available for each ticker.
+* Missing values are handled with defaults (e.g., zeros or 0.1 for betas).
+
+---
+
+## 👨‍💼 Author
 
 **Nitesh Jaiswal**
-GitHub: [@Niteshjai](https://github.com/Niteshjai)
 
----
-
-## 🚀 What's Next?
-
-* ✅ Add support for CVaR and drawdown-based optimization
-* ↺ Enable multi-period rebalancing
-* 📊 Integrate UI via Streamlit
-* 🌐 Deploy live API or dashboard
